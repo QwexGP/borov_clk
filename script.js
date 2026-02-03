@@ -2,101 +2,72 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
-// ────────────────────────────────────────────────
-// Firebase инициализация (твой config)
-// ────────────────────────────────────────────────
-const firebaseConfig = {
-  apiKey: "AIzaSyBJm0vHyFX5hF654loWvHQyteHPM-bmh3M",
-  authDomain: "brvclk-658bb.firebaseapp.com",
-  databaseURL: "https://brvclk-658bb-default-rtdb.firebaseio.com",
-  projectId: "brvclk-658bb",
-  storageBucket: "brvclk-658bb.firebasestorage.app",
-  messagingSenderId: "466193565189",
-  appId: "1:466193565189:web:df414ff332ee8e0042fe6c",
-  measurementId: "G-YP2GWHZH3C"
-};
-
+// Firebase (твой конфиг)
+const firebaseConfig = { /* твой конфиг без изменений */ };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ────────────────────────────────────────────────
-// Переменные игры
-// ────────────────────────────────────────────────
 let score = 0;
 let energy = 1000;
 let maxEnergy = 1000;
-const energyPerSecond = 2;     // восстановление в секунду
+let level = 1;
+const energyPerSecond = 2;
 const clickValue = 1;
 
 const scoreEl = document.getElementById('score');
 const energyEl = document.getElementById('energy');
+const energyFill = document.getElementById('energy-fill');
+const levelEl = document.getElementById('level');
 const hamster = document.getElementById('hamster');
-const effectsContainer = document.getElementById('click-effects');
+const effects = document.getElementById('click-effects');
 
-// Получаем user ID из Telegram (уникальный для каждого пользователя)
-const user = tg.initDataUnsafe.user;
-const userId = user ? user.id.toString() : 'guest_' + Date.now(); // fallback для теста вне TG
+// User ID
+const userId = tg.initDataUnsafe.user?.id?.toString() || 'guest_' + Date.now();
 const userRef = db.ref('users/' + userId);
 
-// ────────────────────────────────────────────────
-// Загрузка данных при запуске
-// ────────────────────────────────────────────────
-userRef.once('value')
-  .then((snapshot) => {
-    const data = snapshot.val() || {};
-    
-    score = data.score || 0;
-    energy = data.energy || 1000;
-    
-    // Восстановление энергии за время оффлайна
-    const lastTime = data.lastTime || Date.now();
-    const secondsOffline = Math.floor((Date.now() - lastTime) / 1000);
-    const recovered = Math.min(secondsOffline * energyPerSecond, maxEnergy - energy);
-    energy = Math.min(energy + recovered, maxEnergy);
+// ─── Загрузка ────────────────────────────────────────
+userRef.once('value').then(snap => {
+  const data = snap.val() || {};
+  score = data.score || 0;
+  energy = data.energy || 1000;
+  level = data.level || 1;
 
-    updateUI();
-    console.log('Данные загружены из Firebase для пользователя', userId);
-  })
-  .catch((err) => {
-    console.error('Ошибка загрузки из Firebase:', err);
-    updateUI(); // показываем дефолтные значения, если ошибка
-  });
+  const last = data.lastTime || Date.now();
+  const offlineSec = (Date.now() - last) / 1000;
+  const recovered = Math.min(offlineSec * energyPerSecond, maxEnergy - energy);
+  energy = Math.min(energy + recovered, maxEnergy);
 
-// ────────────────────────────────────────────────
-// Debounced сохранение (чтобы не спамить БД)
-// ────────────────────────────────────────────────
-let saveTimeout;
-function debouncedSave() {
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
+  updateUI();
+});
+
+// ─── Сохранение с debounce ───────────────────────────
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
     userRef.update({
-      score: score,
-      energy: Math.floor(energy), // храним целое число
+      score,
+      energy: Math.floor(energy),
+      level,
       lastTime: Date.now()
-    })
-    .then(() => {
-      console.log('Прогресс сохранён в Firebase');
-    })
-    .catch((err) => {
-      console.error('Ошибка сохранения в Firebase:', err);
     });
-  }, 400); // 400 мс задержки после последнего изменения
+  }, 500);
 }
 
-// ────────────────────────────────────────────────
-// UI обновление
-// ────────────────────────────────────────────────
+// ─── UI ───────────────────────────────────────────────
 function updateUI() {
-  scoreEl.textContent = score.toLocaleString();
+  scoreEl.textContent = Math.floor(score).toLocaleString();
   energyEl.textContent = `${Math.floor(energy)} / ${maxEnergy}`;
+  energyFill.style.width = (energy / maxEnergy * 100) + '%';
+
+  // Простой расчёт уровня (можно улучшить)
+  level = Math.floor(score / 500) + 1;
+  levelEl.textContent = level;
 }
 
-// ────────────────────────────────────────────────
-// Клик по хомяку
-// ────────────────────────────────────────────────
-hamster.addEventListener('pointerdown', (e) => {
+// ─── Тап ──────────────────────────────────────────────
+hamster.addEventListener('pointerdown', e => {
   if (energy < 1) return;
-
   e.preventDefault();
 
   score += clickValue;
@@ -104,39 +75,75 @@ hamster.addEventListener('pointerdown', (e) => {
 
   createClickEffect(e.clientX, e.clientY);
   updateUI();
-  debouncedSave();
+  save();
 });
 
-// ────────────────────────────────────────────────
-// Эффект +1
-// ────────────────────────────────────────────────
+// ─── Эффект +X ────────────────────────────────────────
 function createClickEffect(x, y) {
-  const effect = document.createElement('div');
-  effect.className = 'click-effect';
-  effect.textContent = `+${clickValue}`;
-  effect.style.left = `${x}px`;
-  effect.style.top  = `${y}px`;
-  
-  effectsContainer.appendChild(effect);
-  setTimeout(() => effect.remove(), 1200);
+  const el = document.createElement('div');
+  el.className = 'click-effect';
+  el.textContent = `+${clickValue}`;
+
+  // Случайный цвет
+  if (Math.random() > 0.7) {
+    el.classList.add('gold');
+  } else if (Math.random() > 0.4) {
+    el.classList.add('purple');
+  }
+
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  effects.appendChild(el);
+
+  setTimeout(() => el.remove(), 1400);
 }
 
-// ────────────────────────────────────────────────
-// Восстановление энергии каждые 100 мс (2 в секунду)
-// ────────────────────────────────────────────────
+// ─── Восстановление энергии ───────────────────────────
 setInterval(() => {
   if (energy < maxEnergy) {
     energy = Math.min(energy + energyPerSecond / 10, maxEnergy);
     updateUI();
-    debouncedSave();
+    save();
   }
 }, 100);
 
-// ────────────────────────────────────────────────
-// Дополнительное сохранение при сворачивании/закрытии
-// ────────────────────────────────────────────────
-window.addEventListener('beforeunload', debouncedSave);
-tg.onEvent('viewportChanged', debouncedSave);
+// ─── Частицы на фоне (очень лёгкие) ──────────────────
+function initParticles() {
+  const canvas = document.getElementById('particles');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 
-// Для отладки: можно вызвать вручную в консоли saveProgress()
-window.saveProgress = debouncedSave;
+  const particles = [];
+  for (let i = 0; i < 40; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      size: Math.random() * 2 + 1,
+      speed: Math.random() * 0.3 + 0.1,
+      alpha: Math.random() * 0.5 + 0.2
+    });
+  }
+
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach(p => {
+      ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      p.y -= p.speed;
+      if (p.y < -10) p.y = canvas.height + 10;
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+}
+
+initParticles();
