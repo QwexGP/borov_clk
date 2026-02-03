@@ -2,11 +2,27 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
-// Firebase (твой конфиг)
-const firebaseConfig = { /* твой конфиг без изменений */ };
+// Отключаем вертикальный свайп вниз (закрытие аппа) — важно для тапа на телефоне
+if (tg.disableVerticalSwipes) {
+  tg.disableVerticalSwipes();
+}
+
+// Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyBJm0vHyFX5hF654loWvHQyteHPM-bmh3M",
+  authDomain: "brvclk-658bb.firebaseapp.com",
+  databaseURL: "https://brvclk-658bb-default-rtdb.firebaseio.com",
+  projectId: "brvclk-658bb",
+  storageBucket: "brvclk-658bb.firebasestorage.app",
+  messagingSenderId: "466193565189",
+  appId: "1:466193565189:web:df414ff332ee8e0042fe6c",
+  measurementId: "G-YP2GWHZH3C"
+};
+
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// Переменные
 let score = 0;
 let energy = 1000;
 let maxEnergy = 1000;
@@ -25,7 +41,7 @@ const effects = document.getElementById('click-effects');
 const userId = tg.initDataUnsafe.user?.id?.toString() || 'guest_' + Date.now();
 const userRef = db.ref('users/' + userId);
 
-// ─── Загрузка ────────────────────────────────────────
+// Загрузка
 userRef.once('value').then(snap => {
   const data = snap.val() || {};
   score = data.score || 0;
@@ -38,9 +54,9 @@ userRef.once('value').then(snap => {
   energy = Math.min(energy + recovered, maxEnergy);
 
   updateUI();
-});
+}).catch(err => console.error('Firebase load error:', err));
 
-// ─── Сохранение с debounce ───────────────────────────
+// Debounced save
 let saveTimer;
 function save() {
   clearTimeout(saveTimer);
@@ -50,55 +66,58 @@ function save() {
       energy: Math.floor(energy),
       level,
       lastTime: Date.now()
-    });
+    }).catch(err => console.error('Firebase save error:', err));
   }, 500);
 }
 
-// ─── UI ───────────────────────────────────────────────
+// UI
 function updateUI() {
   scoreEl.textContent = Math.floor(score).toLocaleString();
   energyEl.textContent = `${Math.floor(energy)} / ${maxEnergy}`;
   energyFill.style.width = (energy / maxEnergy * 100) + '%';
 
-  // Простой расчёт уровня (можно улучшить)
   level = Math.floor(score / 500) + 1;
   levelEl.textContent = level;
 }
 
-// ─── Тап ──────────────────────────────────────────────
-hamster.addEventListener('pointerdown', e => {
+// Обработчик тапа (работает на телефоне)
+function handleTap(e) {
   if (energy < 1) return;
   e.preventDefault();
+  e.stopPropagation();
 
   score += clickValue;
   energy -= 1;
 
-  createClickEffect(e.clientX, e.clientY);
+  const touch = e.touches ? e.touches[0] : e;
+  createClickEffect(touch.clientX, touch.clientY);
+
   updateUI();
   save();
-});
+}
 
-// ─── Эффект +X ────────────────────────────────────────
+// События
+hamster.addEventListener('touchstart', handleTap, { passive: false });
+hamster.addEventListener('pointerdown', e => {
+  if (!('ontouchstart' in window)) handleTap(e);
+}, { passive: false });
+
+// Эффект
 function createClickEffect(x, y) {
   const el = document.createElement('div');
   el.className = 'click-effect';
   el.textContent = `+${clickValue}`;
 
-  // Случайный цвет
-  if (Math.random() > 0.7) {
-    el.classList.add('gold');
-  } else if (Math.random() > 0.4) {
-    el.classList.add('purple');
-  }
+  if (Math.random() > 0.6) el.classList.add('gold');
+  else if (Math.random() > 0.3) el.classList.add('purple');
 
   el.style.left = x + 'px';
   el.style.top = y + 'px';
   effects.appendChild(el);
-
-  setTimeout(() => el.remove(), 1400);
+  setTimeout(() => el.remove(), 1500);
 }
 
-// ─── Восстановление энергии ───────────────────────────
+// Восстановление энергии
 setInterval(() => {
   if (energy < maxEnergy) {
     energy = Math.min(energy + energyPerSecond / 10, maxEnergy);
@@ -107,7 +126,7 @@ setInterval(() => {
   }
 }, 100);
 
-// ─── Частицы на фоне (очень лёгкие) ──────────────────
+// Частицы фона
 function initParticles() {
   const canvas = document.getElementById('particles');
   const ctx = canvas.getContext('2d');
@@ -115,13 +134,13 @@ function initParticles() {
   canvas.height = window.innerHeight;
 
   const particles = [];
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 50; i++) {
     particles.push({
       x: Math.random() * canvas.width,
       y: Math.random() * canvas.height,
-      size: Math.random() * 2 + 1,
-      speed: Math.random() * 0.3 + 0.1,
-      alpha: Math.random() * 0.5 + 0.2
+      size: Math.random() * 2.5 + 0.8,
+      speed: Math.random() * 0.4 + 0.15,
+      alpha: Math.random() * 0.4 + 0.15
     });
   }
 
@@ -132,7 +151,6 @@ function initParticles() {
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
-
       p.y -= p.speed;
       if (p.y < -10) p.y = canvas.height + 10;
     });
