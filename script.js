@@ -2,12 +2,15 @@ const tg = window.Telegram.WebApp;
 tg.expand();
 tg.ready();
 
-// Отключаем вертикальный свайп вниз (закрытие аппа) — важно для тапа на телефоне
-if (tg.disableVerticalSwipes) {
+// Отключаем свайп вниз (закрытие/минимизация) — критично для тапа
+if (tg.version && tg.isVersionAtLeast && tg.isVersionAtLeast('7.7')) {
   tg.disableVerticalSwipes();
+  console.log('Vertical swipes disabled');
+} else {
+  console.warn('disableVerticalSwipes not available — update Telegram');
 }
 
-// Firebase
+// Firebase config (твой)
 const firebaseConfig = {
   apiKey: "AIzaSyBJm0vHyFX5hF654loWvHQyteHPM-bmh3M",
   authDomain: "brvclk-658bb.firebaseapp.com",
@@ -37,131 +40,125 @@ const levelEl = document.getElementById('level');
 const hamster = document.getElementById('hamster');
 const effects = document.getElementById('click-effects');
 
-// User ID
-const userId = tg.initDataUnsafe.user?.id?.toString() || 'guest_' + Date.now();
+// User ID + fallback
+let userId = 'guest_' + Date.now();
+if (tg.initDataUnsafe && tg.initDataUnsafe.user && tg.initDataUnsafe.user.id) {
+  userId = tg.initDataUnsafe.user.id.toString();
+  console.log('User ID from Telegram:', userId);
+} else {
+  console.warn('No Telegram user ID — using guest');
+}
+
 const userRef = db.ref('users/' + userId);
 
-// Загрузка
-userRef.once('value').then(snap => {
-  const data = snap.val() || {};
-  score = data.score || 0;
-  energy = data.energy || 1000;
-  level = data.level || 1;
+// Загрузка данных
+userRef.once('value')
+  .then(snap => {
+    const data = snap.val() || {};
+    score = data.score || 0;
+    energy = data.energy || 1000;
+    level = data.level || 1;
 
-  const last = data.lastTime || Date.now();
-  const offlineSec = (Date.now() - last) / 1000;
-  const recovered = Math.min(offlineSec * energyPerSecond, maxEnergy - energy);
-  energy = Math.min(energy + recovered, maxEnergy);
+    const last = data.lastTime || Date.now();
+    const offlineSec = Math.floor((Date.now() - last) / 1000);
+    const recovered = Math.min(offlineSec * energyPerSecond, maxEnergy - energy);
+    energy += recovered;
+    energy = Math.min(energy, maxEnergy);
 
-  updateUI();
-}).catch(err => console.error('Firebase load error:', err));
+    updateUI();
+    console.log('Loaded from Firebase');
+  })
+  .catch(err => {
+    console.error('Firebase load failed:', err);
+    // Fallback на localStorage если Firebase не доступен
+    score = parseInt(localStorage.getItem('bc_score') || '0');
+    energy = parseInt(localStorage.getItem('bc_energy') || '1000');
+    updateUI();
+  });
 
-// Debounced save
-let saveTimer;
-function save() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    userRef.update({
+// Сохранение (debounce + fallback)
+let saveTimeout;
+function saveProgress() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    const data = {
       score,
       energy: Math.floor(energy),
       level,
       lastTime: Date.now()
-    }).catch(err => console.error('Firebase save error:', err));
-  }, 500);
+    };
+
+    userRef.update(data)
+      .then(() => console.log('Saved to Firebase'))
+      .catch(err => {
+        console.error('Firebase save failed:', err);
+        // Fallback localStorage
+        localStorage.setItem('bc_score', score);
+        localStorage.setItem('bc_energy', Math.floor(energy));
+      });
+  }, 300);
 }
 
 // UI
 function updateUI() {
   scoreEl.textContent = Math.floor(score).toLocaleString();
   energyEl.textContent = `${Math.floor(energy)} / ${maxEnergy}`;
-  energyFill.style.width = (energy / maxEnergy * 100) + '%';
+  energyFill.style.width = `${(energy / maxEnergy) * 100}%`;
 
   level = Math.floor(score / 500) + 1;
   levelEl.textContent = level;
 }
 
-// Обработчик тапа (работает на телефоне)
-function handleTap(e) {
+// Надёжный тап-обработчик
+let tapStarted = false;
+let startY = 0;
+
+function startTap(e) {
   if (energy < 1) return;
   e.preventDefault();
-  e.stopPropagation();
+  tapStarted = true;
+  startY = e.touches[0].clientY;
+}
+
+function endTap(e) {
+  if (!tapStarted) return;
+  tapStarted = false;
+
+  // Проверяем, не был ли свайп (допуск 30px)
+  const currentY = e.changedTouches ? e.changedTouches[0].clientY : startY;
+  if (Math.abs(currentY - startY) > 30) return; // это скролл, игнорируем
 
   score += clickValue;
   energy -= 1;
 
-  const touch = e.touches ? e.touches[0] : e;
+  const touch = e.changedTouches ? e.changedTouches[0] : e;
   createClickEffect(touch.clientX, touch.clientY);
 
   updateUI();
-  save();
+  saveProgress();
 }
 
-// События
-hamster.addEventListener('touchstart', handleTap, { passive: false });
+// События (touch для мобильных + pointer для десктопа)
+hamster.addEventListener('touchstart', startTap, { passive: false });
+hamster.addEventListener('touchend', endTap, { passive: false });
+hamster.addEventListener('touchcancel', () => { tapStarted = false; }, { passive: false });
+
 hamster.addEventListener('pointerdown', e => {
-  if (!('ontouchstart' in window)) handleTap(e);
+  if (!('ontouchstart' in window)) {
+    startTap(e);
+    endTap(e); // для мыши сразу end
+  }
 }, { passive: false });
 
-// Эффект
-function createClickEffect(x, y) {
-  const el = document.createElement('div');
-  el.className = 'click-effect';
-  el.textContent = `+${clickValue}`;
-
-  if (Math.random() > 0.6) el.classList.add('gold');
-  else if (Math.random() > 0.3) el.classList.add('purple');
-
-  el.style.left = x + 'px';
-  el.style.top = y + 'px';
-  effects.appendChild(el);
-  setTimeout(() => el.remove(), 1500);
-}
+// Остальной код (эффекты, интервал энергии, частицы) — оставь как был ранее
 
 // Восстановление энергии
 setInterval(() => {
   if (energy < maxEnergy) {
     energy = Math.min(energy + energyPerSecond / 10, maxEnergy);
     updateUI();
-    save();
+    saveProgress();
   }
 }, 100);
 
-// Частицы фона
-function initParticles() {
-  const canvas = document.getElementById('particles');
-  const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-
-  const particles = [];
-  for (let i = 0; i < 50; i++) {
-    particles.push({
-      x: Math.random() * canvas.width,
-      y: Math.random() * canvas.height,
-      size: Math.random() * 2.5 + 0.8,
-      speed: Math.random() * 0.4 + 0.15,
-      alpha: Math.random() * 0.4 + 0.15
-    });
-  }
-
-  function animate() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    particles.forEach(p => {
-      ctx.fillStyle = `rgba(255, 255, 255, ${p.alpha})`;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
-      p.y -= p.speed;
-      if (p.y < -10) p.y = canvas.height + 10;
-    });
-    requestAnimationFrame(animate);
-  }
-  animate();
-
-  window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-  });
-}
-
-initParticles();
+// Частицы (оставь как было)
