@@ -5,166 +5,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
   <title>BorovClicker</title>
 
-  <!-- Firebase compat SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
-
-  <!-- Telegram Web App -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
   <style>
-    :root {
-      --bg: #0a0015;
-      --accent: #ff2e63;
-      --gold: #ffd700;
-      --purple: #c084fc;
-      --energy: #00ff9d;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-      user-select: none;
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    body {
-      height: 100vh;
-      background: linear-gradient(135deg, var(--bg), #12002a);
-      color: white;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      overflow: hidden;
-      position: relative;
-      overscroll-behavior: none;
-    }
-
-    #particles {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    .container {
-      position: relative;
-      z-index: 2;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 16px 20px;
-    }
-
-    h1 {
-      font-size: 2.8rem;
-      font-weight: 900;
-      background: linear-gradient(90deg, #ffd700, #ff6ec7, #c084fc);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin: 16px 0 24px;
-      text-shadow: 0 0 25px rgba(255,215,0,0.5);
-    }
-
-    .stats {
-      width: 100%;
-      max-width: 380px;
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 16px;
-      font-size: 1.2rem;
-      font-weight: 700;
-    }
-
-    .stat {
-      background: rgba(255,255,255,0.09);
-      padding: 12px 20px;
-      border-radius: 20px;
-      backdrop-filter: blur(12px);
-      border: 1px solid rgba(255,255,255,0.15);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-
-    .energy-text {
-      font-size: 1.1rem;
-      margin-bottom: 8px;
-      opacity: 0.9;
-    }
-
-    .energy-bar {
-      width: 100%;
-      max-width: 380px;
-      height: 20px;
-      background: rgba(0,0,0,0.45);
-      border-radius: 14px;
-      overflow: hidden;
-      margin-bottom: 40px;
-      border: 1px solid rgba(0,255,157,0.35);
-      box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
-    }
-
-    .energy-fill {
-      height: 100%;
-      width: 100%;
-      background: linear-gradient(90deg, #00ff9d, #00d084, #00ff9d);
-      background-size: 200% 100%;
-      animation: gradientFlow 6s linear infinite;
-      transition: width 0.5s ease-out;
-      box-shadow: 0 0 25px rgba(0,255,157,0.7);
-    }
-
-    @keyframes gradientFlow {
-      0% { background-position: 0% 50%; }
-      100% { background-position: 200% 50%; }
-    }
-
-    .tap-area {
-      position: relative;
-      width: 300px;
-      height: 300px;
-      margin: 20px auto;
-      perspective: 1200px;
-    }
-
+    /* Твой предыдущий стиль без изменений, но добавь это: */
+    .tap-area,
     #hamster {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      transition: all 0.14s cubic-bezier(0.34, 1.56, 0.64, 1);
-      filter: drop-shadow(0 0 40px rgba(255,46,99,0.7));
-      transform-style: preserve-3d;
-      touch-action: none;
+      touch-action: manipulation;  /* Лучше чем none для кликеров */
+      pointer-events: auto;
     }
-
-    #hamster:active {
-      transform: scale(0.86) translateZ(-60px) rotateX(12deg);
+    body {
+      overscroll-behavior-y: none;  /* Блокирует резиновый эффект */
     }
-
-    #click-effects {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 10;
-    }
-
-    .click-effect {
-      position: absolute;
-      font-size: 3.4rem;
-      font-weight: 900;
-      pointer-events: none;
-      animation: popUp 1.2s forwards;
-      text-shadow: 0 0 25px currentColor;
-    }
-
-    @keyframes popUp {
-      0%   { transform: translateY(0) scale(0.4); opacity: 0; }
-      15%  { transform: translateY(-50px) scale(1.4); opacity: 1; }
-      75%  { transform: translateY(-160px) scale(1.15); opacity: 1; }
-      100% { transform: translateY(-220px) scale(0.7); opacity: 0; }
-    }
-
-    .gold   { color: var(--gold);   text-shadow: 0 0 30px #ffd700bb; }
-    .purple { color: var(--purple); text-shadow: 0 0 30px #c084fcbb; }
+    /* Остальной твой CSS остаётся */
   </style>
 </head>
 <body>
