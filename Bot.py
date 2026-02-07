@@ -4,9 +4,9 @@ from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-BOT_TOKEN = 'YOUR_TOKEN'
+BOT_TOKEN = '8599787408:AAHdUP8qj6Zlft-Tt7Hl6Ytxc6Wf0ol2TjQ'
 # Ссылка на твой хостинг, где будут лежать файлы Mini App
-APP_URL = 'https://your-domain.com/index.html' 
+APP_URL = 'https://qwexgp.github.io/borov_clk/'
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
