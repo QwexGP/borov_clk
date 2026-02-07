@@ -1,0 +1,57 @@
+body {
+    margin: 0;
+    padding: 0;
+    background: radial-gradient(circle, #1a1a1a 0%, #000000 100%);
+    color: white;
+    font-family: 'Arial', sans-serif;
+    overflow: hidden;
+    user-select: none;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-around;
+    height: 100vh;
+}
+
+.score-container {
+    font-size: 3rem;
+    font-weight: bold;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+}
+
+.click-area {
+    position: relative;
+    cursor: pointer;
+}
+
+#coin {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    box-shadow: 0 0 50px rgba(255, 165, 0, 0.3);
+    transition: transform 0.1s;
+    object-fit: cover; /* Чтобы jpg не искажался */
+    border: 5px solid #ffd700;
+}
+
+#coin:active {
+    transform: scale(0.95);
+}
+
+/* Эффект вылетающей цифры */
+.plus-one {
+    position: absolute;
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 24px;
+    animation: moveUp 0.5s ease-out forwards;
+    pointer-events: none;
+}
+
+@keyframes moveUp {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-100px); }
+}
